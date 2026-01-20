@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 # --- BOTFATTHER'DAN ALDIĞIN TOKENİ BURAYA YAPIŞTIR ---
-TOKEN = 'BURAYA_TOKENINI_YAZ'
+TOKEN = '8323309920:AAHpsa1dUseS1dTDYYLQCbPLxhL_3faVg-k'
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Selam {update.effective_user.first_name}! Krutsh Bot 7/24 Aktif. 🎥\nLink gönder, indireyim.")
