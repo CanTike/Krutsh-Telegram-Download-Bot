@@ -7,31 +7,28 @@ import socketserver
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 
-# 1. Render/Koyeb Health Check Sunucusu
+# 1. Render Port Dinleyici (Render'ın botu kapatmaması için gerekli)
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8000))
     handler = http.server.SimpleHTTPRequestHandler
-    try:
-        with socketserver.TCPServer(("", port), handler) as httpd:
-            httpd.serve_forever()
-    except Exception as e:
-        print(f"Sunucu hatası: {e}")
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        httpd.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# 2. Loglama Ayarları
+# 2. Loglama
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# 3. Güvenli Token Alımı
+# 3. Token Kontrolü
 TOKEN = os.environ.get('BOT_TOKEN')
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.effective_user.first_name
-    await update.message.reply_text(f"Selam {user_name}! Krutsh Bot 7/24 Aktif. 🎥\n\nYouTube, Instagram veya TikTok linki gönderebilirsin.")
+    await update.message.reply_text(f"Selam {user_name}! Krutsh Bot 7/24 Aktif. ✅\n\nYouTube, Instagram veya TikTok linki gönderebilirsin.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
-    if "http" not in url:
+    if not url.startswith("http"):
         return
     
     context.user_data['url'] = url
@@ -40,7 +37,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🎥 Video (MP4)", callback_data='mp4')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text('Dosya formatını seçin:', reply_markup=reply_markup)
+    await update.message.reply_text('Format seçin:', reply_markup=reply_markup)
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -48,24 +45,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     url = context.user_data.get('url')
     format_type = query.data
-    
-    status_msg = await query.edit_message_text(text="📥 Hazırlanıyor... YouTube engeli zorlanıyor.")
+    status_msg = await query.edit_message_text(text="📥 İşleniyor, lütfen bekleyin...")
 
-    # GÜNCELLENEN: iPhone Taklidi ve Gelişmiş Extractor Ayarları
+    # YouTube Engelini Aşmaya Yönelik En Yeni Ayarlar
     ydl_opts = {
         'outtmpl': '%(title)s.%(ext)s',
+        'nocheckcertificate': True,
         'quiet': True,
         'no_warnings': True,
-        'nocheckcertificate': True,
-        'geo_bypass': True,
-        # Botu iOS Safari gibi gösteriyoruz (Daha az kısıtlama alabilir)
-        'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'web'],
-                'skip': ['hls', 'dash']
-            }
-        },
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'extractor_args': {'youtube': {'player_client': ['android', 'ios'], 'skip': ['hls', 'dash']}},
     }
 
     if format_type == 'mp3':
@@ -78,7 +67,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
         
-        await status_msg.edit_text("📤 Hazır! Telegram'a yükleniyor...")
+        await status_msg.edit_text("📤 Telegram'a yükleniyor...")
         
         with open(filename, 'rb') as file:
             if format_type == 'mp3':
@@ -91,23 +80,21 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.delete()
 
     except Exception as e:
-        logging.error(f"Hata detayı: {e}")
-        error_msg = str(e)
-        if "confirm you’re not a bot" in error_msg:
-            msg = "❌ YouTube bu sunucunun (Render) IP adresini engellemiş.\n\n💡 Instagram ve TikTok linkleri hala çalışır! YouTube için bilgisayar başına geçtiğinde 'cookies' eklememiz gerekecek."
+        logging.error(f"Hata: {e}")
+        error_text = str(e)
+        if "confirm you’re not a bot" in error_text:
+            msg = "❌ YouTube Engeli: Render IP adresi YouTube tarafından kısıtlanmış. (Çözüm için cookies.txt eklenmeli)."
         else:
-            msg = f"❌ Bir hata oluştu: {error_msg[:100]}..."
-        
+            msg = "❌ İndirme başarısız oldu. Linkin doğruluğunu kontrol edin."
         await query.message.reply_text(msg)
 
-# Ana Çalıştırma
 if __name__ == '__main__':
     if not TOKEN:
-        print("HATA: BOT_TOKEN bulunamadı!")
+        print("HATA: BOT_TOKEN Environment Variable olarak eklenmemiş!")
     else:
         app = Application.builder().token(TOKEN).build()
         app.add_handler(CommandHandler("start", start))
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         app.add_handler(CallbackQueryHandler(button))
-        print("Bot başarıyla başlatıldı...")
+        print("Bot başlatıldı...")
         app.run_polling()
